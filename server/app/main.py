@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from .yandex_disk import YandexDiskError, upload_wav
 
 app = FastAPI(title="Watch5 Voice Capture Ingest", version="0.2.0")
-MAX_BYTES = 8 * 1024 * 1024
+from .wav_metadata import MAX_BYTES, read_timeline
 FILENAME = re.compile(r"^capture_[0-9]{10,16}\.wav$")
 
 
@@ -60,10 +60,10 @@ async def ingest(request: Request, filename: str, x_device_key: str | None = Hea
                     raise HTTPException(status_code=413, detail="Too large")
                 sha.update(chunk)
                 handle.write(chunk)
-        with open(tmp_name, "rb") as handle:
-            header = handle.read(12)
-            if len(header) < 12 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
-                raise HTTPException(status_code=422, detail="Invalid WAV header")
+        try:
+            read_timeline(Path(tmp_name))
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
 
         digest = sha.hexdigest()
         # A repeated watch upload gets the same ID and remote file name.
@@ -92,9 +92,10 @@ async def ingest(request: Request, filename: str, x_device_key: str | None = Hea
     metadata = {
         "id": uid, "filename": filename, "bytes": written, "sha256": digest,
         "received_at": datetime.now(timezone.utc).isoformat(),
-        "cloud_synced": cloud_path is not None, "cloud_path": cloud_path,
+        "cloud_synced": cloud_path is not None, "cloud_verified": cloud_path is not None, "cloud_path": cloud_path,
     }
     (target / f"{uid}.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return JSONResponse(status_code=201, content=metadata)
+
