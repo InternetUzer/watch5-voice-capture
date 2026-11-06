@@ -34,7 +34,8 @@ export class CompanionLink {
 
   ready(): boolean { return !!this.status && Date.now() - this.seen < 4000 && this.status.source_available && !this.status.stopped; }
   linked(): boolean { return !!this.status && Date.now() - this.seen < 4000 && !this.status.stopped; }
-  sourceLost(): boolean { return !!this.status && Date.now() - this.seen < 4000 && !this.status.source_available; }
+  stopped(): boolean { return !!this.status && Date.now() - this.seen < 4000 && this.status.stopped; }
+  sourceLost(): boolean { return this.linked() && !this.status?.source_available; }
   recording(): boolean { return this.ready() && this.status?.mode !== 'listen'; }
   stopPending(): boolean { return this.pending?.stop === true; }
   initialize(context: common.UIAbilityContext, fingerprint: string, bundle: string): void {

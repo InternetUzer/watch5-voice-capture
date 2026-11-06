@@ -87,6 +87,12 @@ async def upload_wav(local_path: Path, remote_filename: str, token: str,
             response = await client.put(API_BASE + '/resources', headers=headers, params={'path': prefix})
             if response.status_code not in (201, 409):
                 raise YandexDiskError('Cannot create Disk folder')
+        access = await client.get(API_BASE + '/resources', headers=headers,
+                                  params={'path': folder, 'fields': 'type'})
+        if access.status_code in (401, 403):
+            raise YandexDiskError('Yandex Disk read access is required for file verification')
+        if access.status_code != 200:
+            raise YandexDiskError('Cannot check Disk folder access')
         await _put_verified(client, remote_path, local_path.read_bytes(), headers)
         if timeline is not None:
             # The timeline is also embedded in the WAV: retries always reproduce both files.

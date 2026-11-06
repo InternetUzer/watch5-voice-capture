@@ -177,6 +177,11 @@ export class WatchRecorder implements CaptureSink {
     if (this.switching || this.starting || this.stopping) return;
     this.switching = true;
     try {
+      if (this.remoteRequested && this.companion.stopped()) {
+        this.remoteRequested = false; this.wantedRunning = false; this.listenRequested = false;
+        this.resumeWanted = false; await this.live.stop(); await this.updateBackground();
+        await this.pref?.put('resumeWanted', false); await this.pref?.flush();
+      }
       if (!this.wantedRunning && !this.remoteRequested && this.companion.recording() && !this.companion.stopPending()) {
         this.remoteRequested = true; this.wantedRunning = true; this.resumeWanted = true;
       }

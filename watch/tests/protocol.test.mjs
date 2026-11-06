@@ -58,3 +58,10 @@ test('file accepted by phone is not a cloud receipt', async () => {
   }};
   await assert.rejects(value.relayFile('/unused', 'capture_1700000000000.wav', 100, 'a'.repeat(64), () => {}), /Awaiting cloud receipt/);
 });
+
+test('explicit phone STOP is different from losing the headset source', () => {
+  const {value, state, receive} = link();
+  receive({...state, source_available:false}); assert.equal(value.sourceLost(), true);
+  receive({...state, source_available:false, stopped:true});
+  assert.equal(value.sourceLost(), false); assert.equal(value.stopped(), true);
+});

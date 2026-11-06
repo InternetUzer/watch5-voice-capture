@@ -39,9 +39,9 @@ def test_upload_to_disk_creates_private_folder_and_uses_signed_url(tmp_path):
             )
     path = asyncio.run(run())
     assert path == "disk:/Watch5-Voice-Capture/capture_1700000000000_0123456789ab.wav"
-    assert len(seen) == 4
+    assert len(seen) == 5
     assert seen[0].headers["Authorization"] == "OAuth test-token"
-    assert seen[1].url.params["overwrite"] == "true"
+    assert seen[2].url.params["overwrite"] == "true"
 
 
 def test_upload_rejects_invalid_folder(tmp_path):

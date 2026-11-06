@@ -86,7 +86,9 @@ def test_remote_confirmation_and_timeline_are_required(fail, tmp_path, monkeypat
             return httpx.Response(202 if fail == 'pending_202' else 201)
         if request.method == 'PUT': return httpx.Response(201)
         if request.method == 'GET':
-            name = request.url.params['path']; data = remote[name]
+            name = request.url.params['path']
+            if name == 'disk:/Watch5-Voice-Capture': return httpx.Response(200, json={'type':'dir'})
+            data = remote[name]
             if fail == 'pending_202' or (fail == 'timeline_failed' and name.endswith('.json')): return httpx.Response(404)
             return httpx.Response(200, json={'type': 'file', 'size': len(data) + (1 if fail == 'wrong_size' else 0),
                 'sha256': '0'*64 if fail == 'wrong_hash' else hashlib.sha256(data).hexdigest()})
@@ -100,4 +102,18 @@ def test_remote_confirmation_and_timeline_are_required(fail, tmp_path, monkeypat
         assert json.loads(next(data for name, data in remote.items() if name.endswith('.json'))) == timeline()
     else:
         with pytest.raises(YandexDiskError): asyncio.run(run())
+    assert path.exists()
+
+def test_write_only_token_is_detected_before_uploading_audio(tmp_path):
+    path = tmp_path / 'record.wav'; path.write_bytes(wav())
+    seen = []
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(201 if request.method == 'PUT' else 403)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await upload_wav(path, 'capture_1700000000000_0123456789ab.wav', 'fake', client=client)
+    with pytest.raises(YandexDiskError, match='read access'):
+        asyncio.run(run())
+    assert len(seen) == 2
     assert path.exists()
