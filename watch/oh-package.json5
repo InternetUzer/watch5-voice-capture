@@ -1,7 +1,7 @@
 {
   "name": "watch5-voice-capture",
-  "version": "0.1.1",
-  "modelVersion": "5.0.0",
+  "version": "0.1.2",
+  "modelVersion": "6.1.1",
   "description": "Sound-triggered watch recording",
   "dependencies": {}
 }
