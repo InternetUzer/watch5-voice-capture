@@ -1,0 +1,13 @@
+.idea/
+node_modules/
+**/build/
+**/.hvigor/
+*.hap
+*.app
+.env
+__pycache__/
+.pytest_cache/
+*.sqlite3
+*.wav
+*.pcm
+*.log
