@@ -6,6 +6,8 @@ No real conversation audio or OAuth token is sent from the test client.
 from __future__ import annotations
 
 import io
+from pathlib import Path
+from dotenv import load_dotenv
 import json
 import os
 import sys
@@ -34,6 +36,7 @@ def main() -> int:
     if not address.startswith("https://"):
         print("An HTTPS endpoint is required", file=sys.stderr)
         return 2
+    load_dotenv(Path.home() / ".watch5-voice-capture.env", override=False)
     key = os.environ.get("WATCH_API_KEY")
     if not key:
         print("WATCH_API_KEY is missing from environment", file=sys.stderr)
