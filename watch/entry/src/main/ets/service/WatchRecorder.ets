@@ -141,17 +141,17 @@ export class WatchRecorder implements CaptureSink {
   private updateBackground(): Promise<void> {
     this.backgroundQueue = this.backgroundQueue.catch(() => {}).then(async (): Promise<void> => {
       if (!this.context) return;
-      const modes: backgroundTaskManager.BackgroundMode[] = [];
-      if (this.running) modes.push(backgroundTaskManager.BackgroundMode.AUDIO_RECORDING);
-      if (this.live.active) modes.push(backgroundTaskManager.BackgroundMode.AUDIO_PLAYBACK);
-      if (this.uploader.busy) modes.push(backgroundTaskManager.BackgroundMode.DATA_TRANSFER);
+      const modes: string[] = [];
+      if (this.running) modes.push('audioRecording');
+      if (this.live.active) modes.push('audioPlayback');
+      if (this.uploader.busy) modes.push('dataTransfer');
       if (modes.length === 0) {
         if (this.backgroundActive) await backgroundTaskManager.stopBackgroundRunning(this.context);
         this.backgroundActive = false; return;
       }
       if (this.backgroundActive) { await backgroundTaskManager.updateBackgroundRunning(this.context, modes); return; }
       const agent = await wantAgent.getWantAgent({ wants: [{ bundleName: 'com.example.watch5voicecapture', abilityName: 'EntryAbility' }],
-        operationType: wantAgent.OperationType.START_ABILITY, requestCode: 0, wantAgentFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG] });
+        actionType: wantAgent.OperationType.START_ABILITY, requestCode: 0, actionFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG] });
       await backgroundTaskManager.startBackgroundRunning(this.context, modes, agent); this.backgroundActive = true;
     });
     return this.backgroundQueue;

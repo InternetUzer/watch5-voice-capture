@@ -55,7 +55,10 @@ export class WavWriter {
       this.timeline.segments = this.timeline.segments.filter((s: TimelineSegment) => s.audio_end_ms <= this.samplesBytes / 32);
       fs.truncateSync(this.file.fd, 44 + this.samplesBytes);
     } else {
-      this.file = fs.openSync(path + '.part', fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.EXCL);
+      // The recorder is the only writer; this synchronous check/create cannot
+      // interleave with another recording callback. Never overwrite a checkpoint.
+      if (fs.accessSync(path + '.part') || fs.accessSync(path)) throw new Error('Recording already exists');
+      this.file = fs.openSync(path + '.part', fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
       this.writeAt(this.header(0), 0);
       this.checkpoint();
     }

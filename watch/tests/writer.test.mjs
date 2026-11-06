@@ -10,7 +10,8 @@ const source = stripTypeScriptTypes(fs.readFileSync(new URL('../entry/src/main/e
 function writer(maxWrite = Infinity) {
   const shim = {
     OpenMode: { READ_WRITE: fs.constants.O_RDWR, WRITE_ONLY: fs.constants.O_WRONLY,
-      CREATE: fs.constants.O_CREAT, EXCL: fs.constants.O_EXCL, TRUNC: fs.constants.O_TRUNC },
+      CREATE: fs.constants.O_CREAT, TRUNC: fs.constants.O_TRUNC },
+    accessSync: fs.existsSync,
     openSync: (p, flags) => ({ fd: fs.openSync(p, flags) }),
     closeSync: file => fs.closeSync(file.fd ?? file),
     writeSync: (fd, data, opts) => fs.writeSync(fd, Buffer.from(data), 0, Math.min(data.byteLength, maxWrite), opts?.offset ?? null),
@@ -62,5 +63,19 @@ test('corrupt checkpoint header is retained rather than interpreted as empty aud
     fs.writeFileSync(file + '.part', Buffer.alloc(1000)); const Writer = writer();
     assert.throws(() => new Writer(file, 1700000000000, true), /Invalid checkpoint/);
     assert.equal(fs.statSync(file + '.part').size, 1000);
+  } finally { fs.rmSync(directory, {recursive:true}); }
+});
+
+test('a new recording cannot overwrite an existing checkpoint or completed file', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'watch-collision-'));
+  try {
+    const file = path.join(directory, 'capture_1700000000000.wav'); const Writer = writer();
+    const original = Buffer.from('preserve original');
+    for (const suffix of ['.part', '']) {
+      fs.writeFileSync(file + suffix, original);
+      assert.throws(() => new Writer(file, 1700000000000), /already exists/);
+      assert.deepEqual(fs.readFileSync(file + suffix), original);
+      fs.unlinkSync(file + suffix);
+    }
   } finally { fs.rmSync(directory, {recursive:true}); }
 });
