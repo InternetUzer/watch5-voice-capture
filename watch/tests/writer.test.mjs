@@ -54,3 +54,13 @@ test('crash recovery retains checkpointed PCM and marks incomplete timing explic
     assert.equal(meta.segments[0].audio_end_ms, 1000);
   } finally { fs.rmSync(directory, { recursive: true }); }
 });
+
+test('corrupt checkpoint header is retained rather than interpreted as empty audio', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'watch-corrupt-'));
+  try {
+    const file = path.join(directory, 'capture_1700000000000.wav');
+    fs.writeFileSync(file + '.part', Buffer.alloc(1000)); const Writer = writer();
+    assert.throws(() => new Writer(file, 1700000000000, true), /Invalid checkpoint/);
+    assert.equal(fs.statSync(file + '.part').size, 1000);
+  } finally { fs.rmSync(directory, {recursive:true}); }
+});

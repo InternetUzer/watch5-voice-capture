@@ -28,10 +28,23 @@ export class WavWriter {
     this.path = path;
     this.timeline = { version: 1, started_at: new Date(startMs).toISOString(),
       timezone_offset_minutes: -new Date(startMs).getTimezoneOffset(), recovered: recovering, segments: [] };
+    try {
     if (recovering) {
       this.file = fs.openSync(path + '.part', fs.OpenMode.READ_WRITE);
       const header = new ArrayBuffer(44);
-      fs.readSync(this.file.fd, header, { offset: 0 });
+      let count = 0;
+      while (count < 44) {
+        const piece = new ArrayBuffer(44 - count);
+        const read = fs.readSync(this.file.fd, piece, { offset: count });
+        if (read <= 0) throw new Error('Incomplete checkpoint header');
+        new Uint8Array(header).set(new Uint8Array(piece, 0, read), count); count += read;
+      }
+      const view = new DataView(header);
+      if (view.getUint32(0, false) !== 0x52494646 || view.getUint32(8, false) !== 0x57415645 ||
+        view.getUint32(36, false) !== 0x64617461 || view.getUint32(24, true) !== 16000 ||
+        (view.getUint32(40, true) === 0 && fs.statSync(path + '.part').size > 44)) {
+        throw new Error('Invalid checkpoint; preserve original for recovery');
+      }
       this.samplesBytes = Math.min(new DataView(header).getUint32(40, true),
         Math.max(0, fs.statSync(path + '.part').size - 44), 19200000);
       this.samplesBytes -= this.samplesBytes % 2;
@@ -46,6 +59,7 @@ export class WavWriter {
       this.writeAt(this.header(0), 0);
       this.checkpoint();
     }
+    } catch (error) { this.abandonHandle(); throw error; }
   }
 
   dataBytes(): number { return this.samplesBytes; }
