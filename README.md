@@ -17,6 +17,8 @@ Python HTTPS service and the Android **Прораб+** companion in `InternetUze
 
 ## Status
 
+For the release engineer: [complete Russian handoff, build/deploy steps and rollback](docs/RELEASE_HANDOFF_RU.md).
+
 This branch contains **v2 implementation and automated tests**, not a hardware-validated
 release. The v2 HAP has not been compiled or signed in this environment. The older HAP
 build report does not validate these new APIs. Wear Engine registration, matching signing
