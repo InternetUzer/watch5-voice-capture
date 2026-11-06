@@ -1,1 +1,20 @@
-{"app":{"products":[{"name":"default","compatibleSdkVersion":"5.0.0(12)","targetSdkVersion":"5.0.0(12)","buildOption":{}}],"buildModeSet":[{"name":"debug"},{"name":"release"}]},"modules":[{"name":"entry","srcPath":"./entry","targets":[{"name":"default","applyToProducts":["default"]}]}]}
+{
+  "app": {
+    "products": [
+      {
+        "name": "default",
+        "compatibleSdkVersion": 12,
+        "targetSdkVersion": 12,
+        "buildOption": {}
+      }
+    ],
+    "buildModeSet": [{"name": "debug"}, {"name": "release"}]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [{"name": "default", "applyToProducts": ["default"]}]
+    }
+  ]
+}
