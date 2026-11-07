@@ -1,6 +1,6 @@
 # Задание кодеру: выпуск Watch5 Voice Capture v2 и помощника «Прораб+»
 
-Состояние на 6 ноября 2026, московское время. Документ передаётся вместе с исходниками;
+Состояние на 7 ноября 2026, московское время. Документ передаётся вместе с исходниками;
 паролей, OAuth-токенов и закрытых ключей здесь нет. Это кандидат на выпуск, а не уже
 проверенная на устройствах версия. Изменения находятся в двух открытых draft PR.
 
@@ -32,7 +32,7 @@ Android аудиовход Bluetooth SCO/BLE. Микрофон телефона 
 | Компонент | Репозиторий / PR | Ветка | Проверенный исходный commit |
 | --- | --- | --- | --- |
 | Сервер + часы | [watch5-voice-capture, PR #1](https://github.com/InternetUzer/watch5-voice-capture/pull/1) | `codex/voice-capture-v2` → `main` | `59b2ea75fbe4be3df426c0578e39c3583e3a1d45` |
-| Android «Прораб+» | [TECHNADZOR, PR #2](https://github.com/InternetUzer/TECHNADZOR/pull/2) | `codex/watch5-companion-v2` → `claude/android-supervision-app-1as6ta` | `cbbc7ace6b014f38374cbb8c3fb5ba2fe73cb646` |
+| Android «Прораб+» | [TECHNADZOR, PR #2](https://github.com/InternetUzer/TECHNADZOR/pull/2) | `codex/watch5-companion-v2` → `claude/android-supervision-app-1as6ta` | `869c3a3fe2d924ccc10b9db58e399650cf190304` |
 
 Документационные коммиты после этих SHA могут не менять исходники. Перед выпуском
 проверить актуальные heads и diff, включить параллельные изменения целевой ветки,
@@ -41,17 +41,20 @@ Android аудиовход Bluetooth SCO/BLE. Микрофон телефона 
 
 - Сервер: **27 тестов**. Ядро/протокол/запись WAV часов: **16 Node-тестов**.
   [Успешный CI на указанном SHA](https://github.com/InternetUzer/watch5-voice-capture/actions/runs/42282410557).
-- Android: `assembleDebug` и **8 тестов помощника** прошли на `cbbc7ac`.
-  [Финальная проверка](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42282593527).
-  [Артефакт с debug APK и отчётом](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42282593527/artifacts/13535933561)
+- Android: `assembleDebug` и **15 тестов помощника** прошли на `869c3a3`.
+  [Финальная проверка](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42289826775).
+  [Артефакт с debug APK и отчётом](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42289826775/artifacts/13539946246)
   хранится ограниченное время; при истечении срока пересобрать из указанного commit.
-- Полная Android-сборка на **том же `cbbc7ac`** успешно выполнила `assembleRelease`
-  с подписью и LibreDWG: **317 из 317 тестов**, без ошибок/пропусков.
-  [Полный workflow](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42282593517),
-  [артефакт с подписанным release APK](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42282593517/artifacts/13537446087).
+- Полная Android-сборка на **том же `869c3a3`** успешно выполнила `assembleRelease`
+  с подписью и LibreDWG: **324 из 324 тестов**, без ошибок/пропусков.
+  [Полный workflow](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42289826872),
+  [артефакт с подписанным release APK 1.0.145](https://github.com/InternetUzer/TECHNADZOR/actions/runs/42289826872/artifacts/13540735213).
   Шаг публикации в Releases пропущен, поскольку это feature-ветка. Наличие подписи не
   доказывает совпадение с установленным приложением или готовность регистрации Wear Engine.
   После любых исправлений/слияния повторить полный набор и сборку на итоговом commit.
+- По ревью исправлены изоляция постоянных ошибок очереди, скрытие меню без App ID,
+  несколько relay-предложений. Итоговый APK не содержит Huawei provider/service/receiver;
+  SDK добавляет только закрытую ClientHubActivity. [Подробные результаты и SHA-256 APK](https://github.com/InternetUzer/TECHNADZOR/blob/codex/watch5-companion-v2/docs/watch-review-results.md).
 - Node-тесты используют адаптеры платформы и **не компилируют ArkTS**. Нативный HAP v2
   ещё не собран, не подписан и не проверен на часах. Задержка live-аудио не измерена.
 
@@ -65,6 +68,8 @@ GET метаданных файла с имеющимся OAuth вернул **4
 Её контрольная загрузка вернула 201 / `cloud_synced: true`; основной сайт ответил 200.
 Это последнее подтверждённое состояние, перед работой проверить фактический HEAD.
 Старый API не возвращает требуемую v2-квитанцию: новые клиенты сохранят локальную очередь.
+Android после такого отказа отметит файл для проверки. После обновления сервера/ключа
+использовать кнопку «Повторить отклонённые…»; один проблемный файл не блокирует остальные.
 
 ## 3. Пользовательская логика — сохранить при доработке
 
