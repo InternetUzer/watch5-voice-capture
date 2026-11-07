@@ -19,7 +19,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from .yandex_disk import YandexDiskError, upload_wav
 
-MAX_BYTES = 8 * 1024 * 1024
+from .wav_metadata import MAX_BYTES, read_timeline
 FILENAME = re.compile(r"^capture_[0-9]{10,16}\.wav$")
 
 application = Flask(__name__, static_folder=None)
@@ -39,7 +39,7 @@ def recordings_dir() -> Path:
 
 @application.errorhandler(RequestEntityTooLarge)
 def handle_large(_error):
-    return jsonify(error="File exceeds 8 MiB"), 413
+    return jsonify(error="File exceeds 24 MiB"), 413
 
 
 @application.get("/health")
@@ -72,14 +72,14 @@ def ingest():
                     break
                 written += len(chunk)
                 if written > MAX_BYTES:
-                    return jsonify(error="File exceeds 8 MiB"), 413
+                    return jsonify(error="File exceeds 24 MiB"), 413
                 out.write(chunk)
                 digest.update(chunk)
 
-        with open(temporary, "rb") as stored:
-            prefix = stored.read(12)
-        if len(prefix) < 12 or prefix[:4] != b"RIFF" or prefix[8:12] != b"WAVE":
-            return jsonify(error="Invalid WAV header"), 422
+        try:
+            read_timeline(Path(temporary))
+        except ValueError as error:
+            return jsonify(error=str(error)), 422
 
         hexhash = digest.hexdigest()
         item_id = hashlib.sha256(f"{filename}:{hexhash}".encode()).hexdigest()[:24]
@@ -107,10 +107,11 @@ def ingest():
         "sha256": hexhash,
         "bytes": written,
         "received_at": datetime.now(timezone.utc).isoformat(),
-        "cloud_synced": True,
+        "cloud_synced": True, "cloud_verified": True,
         "cloud_path": remote_path,
     }
     (directory / f"{item_id}.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return jsonify(metadata), 201
+
