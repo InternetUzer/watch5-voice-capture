@@ -171,7 +171,7 @@ export class WatchRecorder implements CaptureSink {
       if (enabled) await this.live.start(this.context); else await this.live.stop();
       await this.companion.command(this.remoteRequested ? this.mode : 'listen', this.sensitivity, enabled);
       await this.updateBackground();
-    } catch (error) { this.listenRequested = false; await this.live.stop(); throw error; }
+    } catch (error) { this.listenRequested = false; await this.live.stop(); throw error as Error; }
   }
   private async coordinateSources(): Promise<void> {
     if (this.switching || this.starting || this.stopping) return;
@@ -211,7 +211,7 @@ export class WatchRecorder implements CaptureSink {
         this.pulse(); return;
       } catch (_) { this.remoteRequested = true; throw new Error('Телефон не подтвердил запись · СТОП отменит запрос'); }
     }
-    try { await this.startLocal(); } catch (error) { this.wantedRunning = false; throw error; }
+    try { await this.startLocal(); } catch (error) { this.wantedRunning = false; throw error as Error; }
   }
   private async startLocal(): Promise<void> {
     if (this.running || this.starting) return;
@@ -235,7 +235,7 @@ export class WatchRecorder implements CaptureSink {
       this.freeTimer = setInterval(() => { void this.refreshFree(); }, 5000);
       this.pulse(); this.uploader.kick();
     } catch (error) {
-      await this.stop(false); this.lastError = 'Не удалось начать запись: ' + String(error); throw error;
+      await this.stop(false); this.lastError = 'Не удалось начать запись: ' + String(error); throw error as Error;
     } finally { this.starting = false; }
   }
   stop(userRequested: boolean = true): Promise<void> {

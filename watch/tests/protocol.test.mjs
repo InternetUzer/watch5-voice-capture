@@ -59,6 +59,23 @@ test('file accepted by phone is not a cloud receipt', async () => {
   await assert.rejects(value.relayFile('/unused', 'capture_1700000000000.wav', 100, 'a'.repeat(64), () => {}), /Awaiting cloud receipt/);
 });
 
+test('relay polling observes a later callback and ignores another file reply', async () => {
+  const { value, receive } = link();
+  const name = 'capture_1700000000000.wav', hash = 'a'.repeat(64);
+  const receipt = { filename: name, bytes: 100, sha256: hash,
+    cloud_synced: true, cloud_verified: true, cloud_path: 'disk:/test.wav' };
+  let timer;
+  value.client = { sendMessage: async () => {
+    receive({ type: 'relay', filename: 'capture_1700000000001.wav', bytes: 100, sha256: hash });
+    timer = setTimeout(() => receive({ type: 'relay', filename: name, bytes: 100,
+      sha256: hash, accepted: true, need_file: false, receipt }), 10);
+    return { code: 207 };
+  } };
+  try {
+    assert.deepEqual(await value.relayFile('/unused', name, 100, hash, () => {}), receipt);
+  } finally { clearTimeout(timer); }
+});
+
 test('explicit phone STOP is different from losing the headset source', () => {
   const {value, state, receive} = link();
   receive({...state, source_available:false}); assert.equal(value.sourceLost(), true);

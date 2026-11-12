@@ -109,6 +109,10 @@ export class CompanionLink {
     const result = await this.client.sendMessage(this.peer, this.app, { content: new util.TextEncoder().encodeInto(JSON.stringify(command)) });
     if (result.code !== wearEngine.P2pResultCode.COMMUNICATION_SUCCESS) throw new Error('Команда не доставлена');
   }
+  // The receive callback can update this field while relayFile is awaiting.
+  // Read through a method so control-flow analysis does not pin it to undefined.
+  private currentRelayReply(): RelayReply | undefined { return this.relayReply; }
+
   async relayFile(path: string, name: string, size: number, hash: string, progress: (value: string) => void): Promise<UploadReceipt> {
     if (!this.client || !this.linked()) throw new Error('Phone unavailable');
     const request: RelayQuery = { type: 'relay_query', filename: name, bytes: size, sha256: hash };
@@ -116,7 +120,7 @@ export class CompanionLink {
     await this.client.sendMessage(this.peer, this.app, { content: new util.TextEncoder().encodeInto(JSON.stringify(request)) });
     let reply: RelayReply | undefined;
     for (let i = 0; i < 50; i++) {
-      const candidate = this.relayReply;
+      const candidate = this.currentRelayReply();
       if (candidate && candidate.filename === name && candidate.sha256 === hash && candidate.bytes === size) { reply = candidate; break; }
       await new Promise<void>((resolve: () => void) => { setTimeout(resolve, 100); });
     }

@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs, fileHash } from '@kit.CoreFileKit';
+import { fileIo as fs, hash as fileHash } from '@kit.CoreFileKit';
 import { http, connection } from '@kit.NetworkKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { canDeleteRecording, UploadReceipt } from './UploadReceipt';
 import { DeferredUpload } from './DeferredUpload';
 import { ServerConfig } from './SecureConfig';
@@ -31,7 +32,9 @@ export class Uploader {
     this.context = context; this.closed = false; this.pending = this.files().length;
     this.net = connection.createNetConnection();
     this.net.on('netAvailable', () => { this.kick(); });
-    this.net.register().catch(() => {});
+    // NetConnection registration uses a callback, not a Promise. Upload retries
+    // still work if the optional network-change listener cannot be registered.
+    try { this.net.register((_error: BusinessError): void => {}); } catch (_) {}
   }
   configure(config: ServerConfig): void { this.config = config; this.failures = 0; this.kick(); }
   kick(): void {
@@ -55,9 +58,10 @@ export class Uploader {
         if (this.closed) break;
         try { await this.uploadOne(name, this.config); }
         catch (error) {
-          if (!this.relayAvailable() || !this.relay) throw error;
+          if (!this.relayAvailable() || !this.relay) throw error as Error;
           const path = `${this.context.filesDir}/${name}`;
-          const size = fs.statSync(path).size; const hash = await fileHash.hash(path, 'sha256');
+          const size = fs.statSync(path).size;
+          const hash: string = (await fileHash.hash(path, 'sha256')).toLowerCase();
           const receipt = await this.relay(path, name, size, hash, (message: string): void => { this.status = message; });
           if (!canDeleteRecording(receipt, name, size, hash)) throw new Error('Unverified relay receipt');
           fs.unlinkSync(path);
@@ -87,7 +91,8 @@ export class Uploader {
     const path = `${this.context.filesDir}/${name}`;
     const size = fs.statSync(path).size;
     if (size > 24 * 1024 * 1024 || size < 44) throw new Error('Invalid recording size');
-    const sha256 = await fileHash.hash(path, 'sha256');
+    // CoreFileKit returns uppercase hex; the server/phone protocol uses lowercase.
+    const sha256: string = (await fileHash.hash(path, 'sha256')).toLowerCase();
     const bytes = new ArrayBuffer(size);
     const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
     try {
@@ -121,6 +126,7 @@ export class Uploader {
     this.closed = true;
     this.request?.destroy(); this.request = undefined;
     if (this.timer !== -1) clearTimeout(this.timer);
-    this.net?.unregister().catch(() => {});
+    try { this.net?.unregister((_error: BusinessError): void => {}); } catch (_) {}
+    this.net = undefined;
   }
 }

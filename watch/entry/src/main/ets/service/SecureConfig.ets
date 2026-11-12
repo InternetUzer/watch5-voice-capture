@@ -8,7 +8,7 @@ export class SecureConfig {
   private static alias(): Uint8Array { return new util.TextEncoder().encodeInto('watch5-server-v2'); }
   static async load(): Promise<ServerConfig | undefined> {
     const query: asset.AssetMap = new Map();
-    query.set(asset.Tag.ALIAS, this.alias()); query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
+    query.set(asset.Tag.ALIAS, SecureConfig.alias()); query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
     try {
       const values = await asset.query(query);
       if (values.length === 0) return undefined;
@@ -25,12 +25,12 @@ export class SecureConfig {
     }
     const bytes = new util.TextEncoder().encodeInto(JSON.stringify(config));
     if (bytes.byteLength > 1024) throw new Error('Слишком длинные настройки');
-    const query: asset.AssetMap = new Map(); query.set(asset.Tag.ALIAS, this.alias());
+    const query: asset.AssetMap = new Map(); query.set(asset.Tag.ALIAS, SecureConfig.alias());
     const update: asset.AssetMap = new Map(); update.set(asset.Tag.SECRET, bytes);
     try { await asset.update(query, update); }
     catch (error) {
       if ((error as BusinessError).code !== 24000002) throw new Error('Не удалось сохранить ключ');
-      update.set(asset.Tag.ALIAS, this.alias());
+      update.set(asset.Tag.ALIAS, SecureConfig.alias());
       update.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
       await asset.add(update);
     }

@@ -62,7 +62,7 @@ export class WavWriter {
       this.writeAt(this.header(0), 0);
       this.checkpoint();
     }
-    } catch (error) { this.abandonHandle(); throw error; }
+    } catch (error) { this.abandonHandle(); throw error as Error; }
   }
 
   dataBytes(): number { return this.samplesBytes; }
