@@ -38,7 +38,7 @@ export class PersonalSetup {
     }
   }
 
-  static async apply(context: common.Context, pref: preferences.Preferences): Promise<boolean> {
+  static async apply(context: common.Context, pref: preferences.Preferences, force: boolean = false): Promise<boolean> {
     let bytes: Uint8Array;
     try {
       bytes = await context.resourceManager.getRawFileContent('personal-setup.json');
@@ -48,7 +48,7 @@ export class PersonalSetup {
     }
     if (bytes.byteLength > 4096) throw new Error('Личные настройки слишком велики');
     const profile = PersonalSetup.parse(util.TextDecoder.create('utf-8').decodeWithStream(bytes));
-    if (await pref.get('personalSetupId', '') === profile.id) return false;
+    if (!force && await pref.get('personalSetupId', '') === profile.id) return false;
     const config: ServerConfig = { endpoint: profile.endpoint, key: profile.key };
     await SecureConfig.save(config);
     await pref.put('phoneBundle', profile.phoneBundle);

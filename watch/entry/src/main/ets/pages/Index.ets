@@ -12,6 +12,9 @@ struct Index {
   @State free: number = 0;
   @State transfer: string = '';
   @State success: string = '';
+  @State attempt: string = '';
+  @State backgroundNotice: string = '';
+  @State uploading: boolean = false;
   @State auto: boolean = true;
   @State sensitivity: string = 'Обычная';
   @State settings: boolean = false;
@@ -45,6 +48,8 @@ struct Index {
       this.pending += this.recorder.companion.status?.queue || 0;
       this.transfer += '\nТелефон: ' + (this.recorder.companion.status?.upload || '');
     }
+    this.attempt = this.recorder.uploader.lastAttempt;
+    this.backgroundNotice = this.recorder.uploader.backgroundNotice; this.uploading = this.recorder.uploader.busy;
     this.success = this.recorder.uploader.lastSuccess; this.configured = this.recorder.configured;
     this.sensitivity = this.recorder.sensitivity === 'high' ? 'Высокая' : (this.recorder.sensitivity === 'low' ? 'Низкая' : 'Обычная');
   }
@@ -72,7 +77,7 @@ struct Index {
   build() {
     Scroll() {
       Column({ space: 8 }) {
-        Text('VOICE CAPTURE').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#55D5C3')
+        Text('VOICE CAPTURE 0.2.1').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#55D5C3')
         Text(this.state).fontSize(12).fontColor('#FFFFFF').textAlign(TextAlign.Center)
         Text(`${this.time(this.elapsed)} / 10:00`).fontSize(25).fontColor('#FFFFFF')
         Progress({ value: this.elapsed / 6000, total: 100, type: ProgressType.Linear }).color('#55D5C3')
@@ -96,6 +101,10 @@ struct Index {
           })
         Text(`В очереди: ${this.pending} · свободно ${this.free} МБ`).fontSize(11).fontColor('#CCD5DF')
         Text(this.transfer).fontSize(11).fontColor('#55D5C3').textAlign(TextAlign.Center)
+        if (this.attempt) { Text(`Попытка: ${this.attempt}`).fontSize(10).fontColor('#CCD5DF') }
+        if (this.backgroundNotice) { Text(this.backgroundNotice).fontSize(10).fontColor('#FFDB99').textAlign(TextAlign.Center) }
+        Button('Повторить загрузку').fontSize(11).enabled(this.configured && !this.uploading)
+          .onClick(() => { this.recorder.uploader.kick(); this.refresh(); })
         if (this.success) { Text(`На Диске: ${this.success}`).fontSize(10).fontColor('#CCD5DF') }
         if (this.message) { Text(this.message).fontSize(11).fontColor('#FFBBAA') }
         if (!this.configured) {
@@ -103,6 +112,15 @@ struct Index {
         }
         Button('Настройки сервера').fontSize(11).onClick(() => { this.settings = !this.settings; })
         if (this.settings) {
+          Text(this.configured ? 'Ключ устройства сохранён' : 'Ключ устройства не настроен').fontSize(10).fontColor('#CCD5DF')
+          Button('Восстановить подключение').fontSize(11).enabled(!this.running && !this.uploading).onClick(() => {
+            this.message = 'Восстановление…';
+            void this.recorder.restoreConnection().then(() => {
+              this.endpoint = this.recorder.endpoint;
+              this.phoneFingerprint = this.recorder.phoneFingerprint; this.phoneBundle = this.recorder.phoneBundle;
+              this.message = 'Адрес восстановлен · ключ сохранён'; this.refresh();
+            }).catch(() => { this.message = 'Не удалось восстановить · проверь личный файл настройки и ключ'; });
+          })
           TextInput({ placeholder: 'HTTPS API', text: this.endpoint }).fontSize(10).onChange((v: string) => { this.endpoint = v; })
           TextInput({ placeholder: 'Ключ устройства', text: this.token }).type(InputType.Password).fontSize(10)
             .onChange((v: string) => { this.token = v; })

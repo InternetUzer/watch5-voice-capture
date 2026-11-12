@@ -98,6 +98,23 @@ export class WatchRecorder implements CaptureSink {
     const config: ServerConfig = { endpoint: this.endpoint, key: key.trim() };
     await SecureConfig.save(config); this.uploader.configure(config); this.configured = true;
   }
+  async restoreConnection(): Promise<void> {
+    await this.ready();
+    if (!this.context || !this.pref || this.uploader.busy || this.isRunning()) {
+      throw new Error('Останови запись и дождись окончания передачи');
+    }
+    // Explicit repair only: ordinary app updates never overwrite manual settings.
+    await PersonalSetup.apply(this.context, this.pref, true);
+    const saved = await SecureConfig.load();
+    if (!saved) throw new Error('Ключ не сохранён · введи ключ устройства');
+    const config: ServerConfig = { endpoint: 'https://voice.metalcarcase.ru/v1/recordings', key: saved.key };
+    await SecureConfig.save(config);
+    this.endpoint = config.endpoint; this.configured = true;
+    this.phoneFingerprint = await this.pref.get('phoneFingerprint', '') as string;
+    this.phoneBundle = await this.pref.get('phoneBundle', 'ru.technadzor.app') as string;
+    await this.configureCompanion();
+    this.lastError = ''; this.uploader.configure(config);
+  }
   private pulse(critical: boolean = false): void {
     vibrator.startVibration({ type: 'time', duration: critical ? 300 : 70 }, { usage: 'notification' }).catch(() => {});
   }

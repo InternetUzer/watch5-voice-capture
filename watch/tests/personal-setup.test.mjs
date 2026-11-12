@@ -97,3 +97,13 @@ test('unexpected resource failure is reported instead of silently treated as an 
   });
   assert.equal(s.saved.length, 0);
 });
+
+
+test('explicit repair reapplies the same private profile without touching recording preferences', async () => {
+  const s = setup(); await s.PersonalSetup.apply(s.context, s.pref);
+  s.values.set('mode', 'continuous'); s.values.set('phoneFingerprint', 'broken');
+  assert.equal(await s.PersonalSetup.apply(s.context, s.pref, true), true);
+  assert.equal(s.saved.length, 2); assert.equal(s.saved[1].key, profile.key);
+  assert.equal(s.values.get('phoneFingerprint'), profile.phoneFingerprint);
+  assert.equal(s.values.get('mode'), 'continuous');
+});
