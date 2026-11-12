@@ -7,6 +7,7 @@ import { preferences } from '@kit.ArkData';
 import { CaptureEngine, CaptureMode, CaptureSink, Sensitivity } from './CaptureEngine';
 import { WavWriter } from './WavWriter';
 import { SecureConfig, ServerConfig } from './SecureConfig';
+import { PersonalSetup } from './PersonalSetup';
 import { Uploader } from './Uploader';
 import { CompanionLink } from './CompanionLink';
 import { LivePlayer } from './LivePlayer';
@@ -62,6 +63,8 @@ export class WatchRecorder implements CaptureSink {
     if (!this.context) return;
     try {
       this.pref = await preferences.getPreferences(this.context, { name: 'capture-v2' });
+      try { await PersonalSetup.apply(this.context, this.pref); }
+      catch (_) { this.lastError = 'Личные настройки не применены · проверь настройки сервера'; }
       this.resumeWanted = await this.pref.get('resumeWanted', false) as boolean;
       this.sensitivity = await this.pref.get('sensitivity', 'normal') as Sensitivity;
       this.mode = await this.pref.get('mode', 'auto') as CaptureMode;
