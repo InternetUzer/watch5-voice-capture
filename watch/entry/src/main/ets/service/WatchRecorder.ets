@@ -5,6 +5,7 @@ import { fileIo as fs, storageStatistics } from '@kit.CoreFileKit';
 import { vibrator } from '@kit.SensorServiceKit';
 import { preferences } from '@kit.ArkData';
 import { CaptureEngine, CaptureMode, CaptureSink, Sensitivity } from './CaptureEngine';
+import { WebRtcDetector } from './WebRtcDetector';
 import { WavWriter } from './WavWriter';
 import { SecureConfig, ServerConfig } from './SecureConfig';
 import { PersonalSetup } from './PersonalSetup';
@@ -17,7 +18,7 @@ export class WatchRecorder implements CaptureSink {
   static getInstance(): WatchRecorder { return WatchRecorder.instance; }
   private context?: common.UIAbilityContext;
   private capturer?: audio.AudioCapturer;
-  private engine: CaptureEngine = new CaptureEngine(this);
+  private engine: CaptureEngine = new CaptureEngine(this, new WebRtcDetector());
   private writer?: WavWriter;
   private starting: boolean = false;
   private stopping?: Promise<void>;
@@ -26,6 +27,7 @@ export class WatchRecorder implements CaptureSink {
   private backgroundActive: boolean = false;
   private backgroundQueue: Promise<void> = Promise.resolve();
   private nextSampleMs: number = 0;
+  private lastAudioAt: number = 0;
   private lastName: number = 0;
   private freeBytes: number = 0;
   private freeTimer: number = -1;
@@ -43,7 +45,7 @@ export class WatchRecorder implements CaptureSink {
   phoneBundle: string = 'ru.technadzor.app';
   readonly uploader: Uploader = new Uploader();
   endpoint: string = 'https://voice.metalcarcase.ru/v1/recordings';
-  sensitivity: Sensitivity = 'normal';
+  sensitivity: Sensitivity = 'high';
   mode: CaptureMode = 'auto';
   configured: boolean = false;
 
@@ -66,7 +68,7 @@ export class WatchRecorder implements CaptureSink {
       try { await PersonalSetup.apply(this.context, this.pref); }
       catch (_) { this.lastError = 'Личные настройки не применены · проверь настройки сервера'; }
       this.resumeWanted = await this.pref.get('resumeWanted', false) as boolean;
-      this.sensitivity = await this.pref.get('sensitivity', 'normal') as Sensitivity;
+      this.sensitivity = await this.pref.get('webrtcSensitivity', 'high') as Sensitivity;
       this.mode = await this.pref.get('mode', 'auto') as CaptureMode;
       this.phoneFingerprint = await this.pref.get('phoneFingerprint', '') as string;
       this.phoneBundle = await this.pref.get('phoneBundle', 'ru.technadzor.app') as string;
@@ -91,6 +93,13 @@ export class WatchRecorder implements CaptureSink {
   isRecording(): boolean { return this.running || this.starting || this.remoteRequested; }
   isRunning(): boolean { return this.isRecording() || this.listenRequested || this.companion.stopPending(); }
   recordedMs(): number { return this.remoteRequested ? (this.companion.status?.elapsed_ms || 0) : this.engine.recordedMs(); }
+  microphoneLevel(): string {
+    if (!this.running || this.remoteRequested) return '';
+    if (Date.now() - this.lastAudioAt > 2000) return 'Нет данных микрофона · нажми СТОП и СТАРТ';
+    const level = Math.max(-96, Math.round(20 * Math.log10(Math.max(1, this.engine.gate.levelRms) / 32768)));
+    const detected = this.mode === 'continuous' ? 'непрерывно' : (this.engine.gate.speechDetected ? 'речь' : 'ожидание');
+    return `Звук: ${level} дБFS · ${detected}`;
+  }
   freeMiB(): number { return Math.max(0, Math.floor(this.freeBytes / 1048576)); }
   clips(): string[] { return this.uploader.files(); }
   clipsCount(): number { return this.clips().length; }
@@ -146,6 +155,7 @@ export class WatchRecorder implements CaptureSink {
   }
   private onData = (data: ArrayBuffer): void => {
     if (!this.running) return;
+    if (data.byteLength > 0) this.lastAudioAt = Date.now();
     const observedStart = Date.now() - data.byteLength / 32;
     if (this.nextSampleMs === 0 || Math.abs(observedStart - this.nextSampleMs) > 2000) this.nextSampleMs = observedStart;
     try { this.engine.feed(data, this.nextSampleMs, 'watch'); this.nextSampleMs += data.byteLength / 32; }
@@ -241,17 +251,17 @@ export class WatchRecorder implements CaptureSink {
       if (!this.context) throw new Error('Нет контекста приложения');
       await this.refreshFree(); if (this.freeBytes < 9 * 1048576) throw new Error('Недостаточно памяти');
       this.lastError = ''; this.recover(); this.nextSampleMs = 0;
-      this.engine = new CaptureEngine(this); this.engine.mode = this.mode; this.engine.gate.sensitivity = this.sensitivity;
+      this.engine = new CaptureEngine(this, new WebRtcDetector()); this.engine.mode = this.mode; this.engine.gate.sensitivity = this.sensitivity;
       this.capturer = await audio.createAudioCapturer({
         streamInfo: { samplingRate: audio.AudioSamplingRate.SAMPLE_RATE_16000, channels: audio.AudioChannel.CHANNEL_1,
           sampleFormat: audio.AudioSampleFormat.SAMPLE_FORMAT_S16LE, encodingType: audio.AudioEncodingType.ENCODING_TYPE_RAW },
         capturerInfo: { source: audio.SourceType.SOURCE_TYPE_MIC, capturerFlags: 0 } });
       this.capturer.on('readData', this.onData); this.capturer.on('audioInterrupt', this.onInterrupt);
-      this.running = true;
+      this.running = true; this.lastAudioAt = Date.now();
       await this.capturer.start(); await this.updateBackground();
       this.resumeWanted = true;
       await this.pref?.put('resumeWanted', true); await this.pref?.put('mode', this.mode);
-      await this.pref?.put('sensitivity', this.sensitivity); await this.pref?.flush();
+      await this.pref?.put('webrtcSensitivity', this.sensitivity); await this.pref?.flush();
       this.freeTimer = setInterval(() => { void this.refreshFree(); }, 5000);
       this.pulse(); this.uploader.kick();
     } catch (error) {

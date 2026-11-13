@@ -12,51 +12,48 @@ export interface PcmFrame {
 export type CaptureMode = 'auto' | 'continuous';
 export type Sensitivity = 'low' | 'normal' | 'high';
 
-/** Speech-oriented energy/band detector, NOT a speech recognition model. */
+/** Detection is injected so recording/timeline policy can be tested independently. */
+export interface VoiceDetector {
+  detect(pcm: ArrayBuffer, sensitivity: Sensitivity): boolean;
+  reset(): void;
+  close(): void;
+}
+
 export class SpeechGate {
-  private floor: number = 100;
+  private detector: VoiceDetector;
   private candidateSamples: number = 0;
+  private candidateGap: number = 0;
   private tailSamples: number = 0;
-  private previousInput: number = 0;
-  private previousHigh: number = 0;
-  private previousLow: number = 0;
-  sensitivity: Sensitivity = 'normal';
+  sensitivity: Sensitivity = 'high';
+  levelRms: number = 0;
+  speechDetected: boolean = false;
+
+  constructor(detector: VoiceDetector) { this.detector = detector; }
 
   reset(): void {
-    this.floor = 100; this.candidateSamples = 0; this.tailSamples = 0;
-    this.previousInput = 0; this.previousHigh = 0; this.previousLow = 0;
+    this.detector.reset();
+    this.candidateSamples = 0; this.candidateGap = 0; this.tailSamples = 0;
+    this.levelRms = 0; this.speechDetected = false;
   }
 
-  feed(pcm: ArrayBuffer): boolean {
+  close(): void { this.detector.close(); }
+
+  feed(pcm: ArrayBuffer, detectSpeech: boolean = true): boolean {
     const samples = new Int16Array(pcm);
     let energy: number = 0;
-    let bandEnergy: number = 0;
-    let crossings: number = 0;
-    let previous: number = this.previousLow;
-    for (let i = 0; i < samples.length; i++) {
-      // First-order 160 Hz high pass, 3.4 kHz low pass; reject rumble and clicks.
-      const high = 0.941 * (this.previousHigh + samples[i] - this.previousInput);
-      const low = this.previousLow + 0.737 * (high - this.previousLow);
-      this.previousInput = samples[i]; this.previousHigh = high; this.previousLow = low;
-      energy += samples[i] * samples[i]; bandEnergy += low * low;
-      if ((low >= 0) !== (previous >= 0)) crossings++;
-      previous = low;
-    }
-    const rms = Math.sqrt(bandEnergy / Math.max(1, samples.length));
-    const minimum = this.sensitivity === 'high' ? 140 : (this.sensitivity === 'low' ? 600 : 280);
-    const multiplier = this.sensitivity === 'high' ? 1.8 : (this.sensitivity === 'low' ? 3.5 : 2.5);
-    const crossingRate = crossings / Math.max(1, samples.length);
-    const likelySpeech = rms > Math.max(minimum, this.floor * multiplier) &&
-      bandEnergy > energy * 0.12 && crossingRate > 0.005 && crossingRate < 0.45;
-    if (this.tailSamples === 0 && !likelySpeech) {
-      this.floor = Math.min(500, Math.max(25, this.floor * 0.99 + rms * 0.01));
-    }
-    if (likelySpeech) {
+    for (let i = 0; i < samples.length; i++) energy += samples[i] * samples[i];
+    this.levelRms = Math.sqrt(energy / Math.max(1, samples.length));
+    // Continuous mode needs only the meter; avoid unnecessary VAD work.
+    this.speechDetected = detectSpeech && this.detector.detect(pcm, this.sensitivity);
+    if (this.speechDetected) {
       this.candidateSamples += samples.length;
-      if (this.tailSamples > 0 || this.candidateSamples >= 960) this.tailSamples = 80000;
+      this.candidateGap = 0;
+      const onset = this.sensitivity === 'high' ? 320 : (this.sensitivity === 'low' ? 960 : 640);
+      if (this.tailSamples > 0 || this.candidateSamples >= onset) this.tailSamples = 80000;
       return this.tailSamples > 0;
     }
-    this.candidateSamples = 0;
+    this.candidateGap += samples.length;
+    if (this.candidateGap > 640) this.candidateSamples = 0;
     const wasActive = this.tailSamples > 0;
     this.tailSamples = Math.max(0, this.tailSamples - samples.length);
     return wasActive;
@@ -65,7 +62,7 @@ export class SpeechGate {
 
 export class CaptureEngine {
   readonly maxBytes: number = 16000 * 2 * 600;
-  readonly gate: SpeechGate = new SpeechGate();
+  readonly gate: SpeechGate;
   mode: CaptureMode = 'auto';
   private sink: CaptureSink;
   private prior: PcmFrame[] = [];
@@ -78,7 +75,7 @@ export class CaptureEngine {
   private lastEnd: number = 0;
   private lastSource: string = "";
 
-  constructor(sink: CaptureSink) { this.sink = sink; }
+  constructor(sink: CaptureSink, detector: VoiceDetector) { this.sink = sink; this.gate = new SpeechGate(detector); }
   recordedMs(): number { return this.currentBytes / 32; }
   isWriting(): boolean { return this.writing; }
 
@@ -102,7 +99,8 @@ export class CaptureEngine {
   }
 
   private process(frame: PcmFrame): void {
-    this.writing = this.mode === 'continuous' || this.gate.feed(frame.pcm);
+    const detected = this.gate.feed(frame.pcm, this.mode === 'auto');
+    this.writing = this.mode === 'continuous' || detected;
     if (this.writing) {
       for (const previous of this.prior) this.write(previous);
       this.prior = []; this.priorBytes = 0;
@@ -137,8 +135,12 @@ export class CaptureEngine {
   }
 
   stop(): void {
-    this.flushCarry();
-    if (this.currentBytes > 0) { this.sink.finish(); this.currentBytes = 0; }
-    this.prior = []; this.priorBytes = 0; this.writing = false; this.lastEnd = 0; this.lastSource = ""; this.gate.reset();
+    try {
+      this.flushCarry();
+      if (this.currentBytes > 0) { this.sink.finish(); this.currentBytes = 0; }
+    } finally {
+      this.prior = []; this.priorBytes = 0; this.writing = false; this.lastEnd = 0; this.lastSource = '';
+      try { this.gate.reset(); } finally { this.gate.close(); }
+    }
   }
 }

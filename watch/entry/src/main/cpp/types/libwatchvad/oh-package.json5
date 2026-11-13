@@ -1,0 +1,6 @@
+{
+  "name": "libwatchvad.so",
+  "version": "1.0.0",
+  "types": "./index.d.ts",
+  "description": "Local WebRTC VAD native bridge"
+}

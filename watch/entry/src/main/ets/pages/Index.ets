@@ -17,6 +17,7 @@ struct Index {
   @State uploading: boolean = false;
   @State auto: boolean = true;
   @State sensitivity: string = 'Обычная';
+  @State microphoneLevel: string = '';
   @State settings: boolean = false;
   @State configured: boolean = false;
   @State endpoint: string = 'https://voice.metalcarcase.ru/v1/recordings';
@@ -52,6 +53,7 @@ struct Index {
     this.backgroundNotice = this.recorder.uploader.backgroundNotice; this.uploading = this.recorder.uploader.busy;
     this.success = this.recorder.uploader.lastSuccess; this.configured = this.recorder.configured;
     this.sensitivity = this.recorder.sensitivity === 'high' ? 'Высокая' : (this.recorder.sensitivity === 'low' ? 'Низкая' : 'Обычная');
+    this.microphoneLevel = this.recorder.microphoneLevel();
   }
   private time(ms: number): string {
     const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -77,8 +79,9 @@ struct Index {
   build() {
     Scroll() {
       Column({ space: 8 }) {
-        Text('VOICE CAPTURE 0.2.1').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#55D5C3')
+        Text('VOICE CAPTURE 0.2.2').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#55D5C3')
         Text(this.state).fontSize(12).fontColor('#FFFFFF').textAlign(TextAlign.Center)
+        if (this.microphoneLevel) { Text(this.microphoneLevel).fontSize(10).fontColor('#CCD5DF') }
         Text(`${this.time(this.elapsed)} / 10:00`).fontSize(25).fontColor('#FFFFFF')
         Progress({ value: this.elapsed / 6000, total: 100, type: ProgressType.Linear }).color('#55D5C3')
         Text(`Осталось ${this.time(600000 - this.elapsed)}`).fontSize(11).fontColor('#CCD5DF')

@@ -5,11 +5,13 @@ on:
     paths:
       - 'server/**'
       - 'watch/**'
+      - 'scripts/test-watch-vad.py'
       - '.github/workflows/server-tests.yml'
   pull_request:
     paths:
       - 'server/**'
       - 'watch/**'
+      - 'scripts/test-watch-vad.py'
       - '.github/workflows/server-tests.yml'
 
 jobs:
@@ -34,4 +36,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --test watch/tests/*.test.mjs
+      - run: python scripts/test-watch-vad.py
