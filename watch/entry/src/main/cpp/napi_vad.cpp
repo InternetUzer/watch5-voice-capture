@@ -3,8 +3,9 @@
 #ifdef WATCH_VAD_HOST_TEST
 #include <node_api.h>
 #else
+// Public app SDK header also declares module registration. native_node_api.h
+// is an internal OpenHarmony header and is not shipped in DevEco's app SDK.
 #include "napi/native_api.h"
-#include "napi/native_node_api.h"
 #endif
 #include "webrtc/common_audio/vad/include/webrtc_vad.h"
 #include <cmath>
