@@ -1,0 +1,1 @@
+WebRTC regression fixture: test-audio.raw (PCM16 LE, mono, 8000 Hz), from wiseman/py-webrtcvad commit e283ca41df3a84b0e87fb1f5cb9b21580a286b09. Stored as base64 without changes. See ../../entry/src/main/cpp/third_party/LICENSE.webrtc for upstream license. Expected decisions come from test_webrtcvad.py at the same commit.

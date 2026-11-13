@@ -1,52 +1,60 @@
-# Watch5 Voice Capture
+# Watch5 Voice Capture v2
 
-HarmonyOS / ArkTS audio-capture prototype for Huawei Watch 5 with a self-hosted FastAPI server and **optional private Yandex Disk archival**.
+Recording candidate for Huawei Watch 5 (target HarmonyOS 6.1.0/API 23) with a separate
+Python HTTPS service and the Android **Прораб+** companion in `InternetUzer/TECHNADZOR`.
 
-## Project
+- START arms speech-oriented recording: 2-second pre-roll, 5 seconds after speech,
+  then pause in the same file. 600 seconds of accumulated PCM produces one WAV.
+- Continuous mode records until STOP. STOP finalizes the short remainder.
+- Bluetooth headset capture runs on the Android companion; no manufacturer filter.
+  Live listening on the watch is optional and independent of archival recording.
+- Durable local outboxes; automatic retry; removal only after matching cloud size and
+  SHA-256 proof. The phone can relay completed watch files and returns a persisted cloud
+  receipt. Interrupted `.part` files are recovered on the next recording-app start.
+- Embedded WAV `vcap` timeline plus a verified JSON sidecar map playback time to original
+  timestamps. New cloud filenames show the first captured timestamp in UTC.
+- Device API keys use HarmonyOS Asset Store / AndroidKeyStore. Yandex OAuth stays server-side.
 
-- `watch/` — sound-level triggering, local WAV clips, pre-roll, user-initiated HTTP upload.
-- `server/` — API-key-protected audio ingestion and Yandex Disk REST API upload.
-- `server/tests/` — server tests, including a mocked Yandex Disk adapter.
-- `docs/INSTALL_RU.md` — watch installation instructions.
-- `docs/YANDEX_DISK_RU.md` — [Yandex Disk setup for Windows](docs/YANDEX_DISK_RU.md).
-- `docs/PROTOCOL.md` — recording upload protocol.
+## Status
 
-## Status (November 2026)
+For the release engineer: [complete Russian handoff, build/deploy steps and rollback](docs/RELEASE_HANDOFF_RU.md).
 
-- **DevEco Studio 6.1.1.280:** a user reported a successful ArkTS/HAP build on Windows; signing was not configured. Actual installation and operation on Watch 5 remain **untested**.
-- **Yandex Disk feature:** code added, but live OAuth upload **not tested** against a real account. Server unit tests use a mocked HTTP client.
-- Watch uploads require tapping the upload button. Automatic background upload is **not implemented**.
-- The recorder is sound-energy based, not true speech-specific VAD. The recording session is started by the wearer and the OS mic indicator is not bypassed.
-- The server has no automatic transcription stage and this chat has no private Yandex Disk access.
+This branch contains **v2 implementation and automated tests**, not a hardware-validated
+release. The v2 HAP has not been compiled or signed in this environment. The older HAP
+build report does not validate these new APIs. Wear Engine registration, matching signing
+certificates and real-device tests are still required. See [v2 acceptance and setup](docs/V2_RU.md).
+Do not merge/deploy this as a proven watch release before those checks.
 
-## Server on Windows (PowerShell)
-
-```powershell
-cd C:\Users\Serega\DevecostudioProjects\watch5-voice-capture\server
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-
-$env:WATCH_API_KEY = [guid]::NewGuid().ToString("N")
-$yandexSecret = Read-Host 'Yandex OAuth token' -AsSecureString
-$env:YANDEX_DISK_TOKEN = [System.Net.NetworkCredential]::new('', $yandexSecret).Password
-$env:YANDEX_DISK_FOLDER = 'disk:/Watch5-Voice-Capture'
-$env:WATCH_STORAGE_DIR = "$PWD\recordings"
-
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-If `YANDEX_DISK_TOKEN` is absent, uploads are **local-only**. A private Yandex Disk folder is created by the API when configured. Do not commit OAuth tokens, publish the `.env` file, or expose the local HTTP endpoint directly to the Internet. Provide a reachable HTTPS endpoint for the watch, with valid TLS and a strong device key.
-
-See [Yandex Disk integration guide](docs/YANDEX_DISK_RU.md).
+The speech detector is a voice-band energy heuristic, not a trained VAD. Machinery and
+music can trigger it. Background recording uses normal system permissions and indicators.
+Auto-starting the microphone after reboot is not implemented: restore the queue, then
+request an explicit START. OS-controlled upload scheduling can be delayed.
 
 ## Tests
 
-```bash
-cd server
-python -m pip install -r requirements.txt
-python -m pytest -q
+```sh
+python -m pip install -r server/requirements.txt
+PYTHONPATH=server python -m pytest -q server/tests
+node --test watch/tests/*.test.mjs  # Node 24+
 ```
 
-## Limitations
+Node tests exercise pure capture, WAV recovery and messaging code with API shims; they
+are not an ArkTS compiler or watch hardware test. Server cloud tests use a mock Disk API.
+The companion has Kotlin and Robolectric tests in its own repository.
 
-An archive file must be no larger than **8 MiB** for the current watch uploader. Cloud upload failures return HTTP 502 and retain the local WAV for retry. Public download links are **not** created. This chat cannot automatically read your private Yandex Disk; attach an audio file or provide an accessible share link when asking for a transcript.
+## Server
+
+Use the existing isolated `voice.metalcarcase.ru` Passenger service, or run
+`uvicorn app.main:app --host 127.0.0.1 --port 8000` from `server/` behind HTTPS.
+Configure `WATCH_API_KEY`, `YANDEX_DISK_TOKEN`, `YANDEX_DISK_FOLDER` and a private
+`WATCH_STORAGE_DIR` through protected server configuration. Never commit these values.
+
+The server accepts PCM16/16 kHz/mono WAV up to **24 MiB**, at most 600 seconds of PCM.
+No cloud verification means no permission to delete the original. WAV and JSON sidecar
+must both be verified. Retries use deterministic paths and overwrite the same content.
+Main-site DNS, code and mail are outside this service's deployment scope.
+
+- [Protocol](docs/PROTOCOL.md)
+- [Watch installation](docs/INSTALL_RU.md)
+- [REG.RU deployment](docs/METALCARCASE_DEPLOY_RU.md)
+- [Yandex OAuth setup](docs/YANDEX_DISK_RU.md)

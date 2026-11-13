@@ -11,3 +11,8 @@ __pycache__/
 *.wav
 *.pcm
 *.log
+
+# Personal builds only: upload credentials must never enter Git.
+watch/entry/src/main/resources/rawfile/personal-setup.json
+watch/entry/src/main/resources/rawfile/personal-setup.json.*
+
